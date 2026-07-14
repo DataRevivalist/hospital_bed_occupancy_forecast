@@ -1,0 +1,7 @@
+streamlit>=1.59
+pandas>=2.0
+numpy>=1.26
+lightgbm>=4.0
+shap>=0.44
+matplotlib>=3.8
+pyarrow>=14.0
