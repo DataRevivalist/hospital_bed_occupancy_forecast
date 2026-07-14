@@ -1,0 +1,17 @@
+specialty,admission_type,n_admissions,median_los_hours
+Cardiology,Elective,4683,65.5
+Cardiology,Emergency,19338,63.1
+Cardiology,Transfer,625,63.3
+Diagnostics,Elective,4173,5.1
+Diagnostics,Emergency,3534,5.2
+Diagnostics,Transfer,67,5.2
+General Medicine,Emergency,45024,56.9
+General Medicine,Transfer,1252,57.9
+ICU,Emergency,8152,69.0
+ICU,Transfer,243,67.6
+Oncology,Elective,6269,97.6
+Oncology,Emergency,7723,93.3
+Oncology,Transfer,200,94.0
+Orthopaedics,Elective,8204,87.9
+Orthopaedics,Emergency,20676,86.1
+Orthopaedics,Transfer,597,87.6

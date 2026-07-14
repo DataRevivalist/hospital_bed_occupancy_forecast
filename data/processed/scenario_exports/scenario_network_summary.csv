@@ -1,0 +1,5 @@
+scenario,network_delta_beds
+Delayed discharges (+30% LOS),47.83978060820918
+Emergency admission spike (2.2x),35.28197126287674
+Flu outbreak (1.6x emergency demand),25.48980019516053
+Severe staffing shortage (70% safe ratio),-0.2473322507914667

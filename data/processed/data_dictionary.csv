@@ -1,0 +1,44 @@
+dataset,column,description
+admissions_discharges,hospital_id,Hospital site identifier (FK to hospital_reference)
+admissions_discharges,patient_id,Patient identifier
+admissions_discharges,admission_id,Unique admission episode identifier (PK)
+admissions_discharges,admission_datetime,Timestamp patient was admitted
+admissions_discharges,discharge_datetime,Timestamp patient was discharged (null = still admitted)
+admissions_discharges,admission_type,Elective / Emergency / Transfer
+admissions_discharges,admission_source,Route into hospital (ED or Waiting List)
+admissions_discharges,specialty,Clinical specialty responsible for the admission
+admissions_discharges,ward,Ward the patient occupied
+admissions_discharges,bed_type,Standard / Critical Care / ICU Step-down / Day Case
+admissions_discharges,length_of_stay_hours,Duration of stay in hours (recomputed from timestamps where needed)
+admissions_discharges,discharge_destination,Where the patient went on discharge
+admissions_discharges,is_open_episode,True if no discharge_datetime was recorded
+bed_inventory_occupancy,datetime,Hourly timestamp of the snapshot
+bed_inventory_occupancy,hospital_id,Hospital site identifier
+bed_inventory_occupancy,ward,Ward name
+bed_inventory_occupancy,bed_type,Bed type on the ward
+bed_inventory_occupancy,total_beds,Physical bed count
+bed_inventory_occupancy,staffed_beds,Beds staffed and available for use
+bed_inventory_occupancy,occupied_beds,Beds occupied at the snapshot hour (interpolated where missing)
+bed_inventory_occupancy,closed_beds,"Beds closed (e.g. maintenance, infection control)"
+bed_inventory_occupancy,occupancy_rate,Derived: occupied_beds / staffed_beds
+bed_inventory_occupancy,available_beds,Derived: staffed_beds - occupied_beds
+ed_outpatient_arrivals,arrival_datetime,Timestamp of ED/outpatient arrival
+ed_outpatient_arrivals,triage_category,Clinical urgency at triage
+ed_outpatient_arrivals,arrival_mode,How the patient arrived
+ed_outpatient_arrivals,outcome,Disposition following assessment
+ed_outpatient_arrivals,time_to_admission,Hours from arrival to admission (0 where not applicable -- see time_to_admission_applicable)
+ed_outpatient_arrivals,time_to_admission_applicable,"Flag: 1 if outcome == Admitted (time_to_admission is real), 0 if not applicable (time_to_admission filled with 0 as a placeholder)"
+ed_outpatient_arrivals,bed_requested,Whether an inpatient bed was requested
+elective_surgery_schedule,surgery_date,Scheduled date of the procedure
+elective_surgery_schedule,specialty,Specialty performing the procedure
+elective_surgery_schedule,procedure_group,Procedure category
+elective_surgery_schedule,expected_los_days,Expected post-op length of stay in days
+elective_surgery_schedule,bed_type_required,Bed type needed post-procedure
+elective_surgery_schedule,surgery_status,Completed / Cancelled
+elective_surgery_schedule,cancellation_reason,Reason for cancellation ('Not Cancelled' if completed)
+staffing_resource,date,Calendar date
+staffing_resource,ward,Ward name
+staffing_resource,staff_role,Role (Nurse / HCA / Doctor / AHP)
+staffing_resource,planned_staff,Planned headcount for the shift/day
+staffing_resource,actual_staff,Actual headcount on duty
+staffing_resource,safe_ratio_met,Whether minimum safe staffing ratio was met

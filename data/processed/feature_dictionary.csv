@@ -1,0 +1,23 @@
+feature,description
+occupied_beds,Target series: mean hourly occupied beds for the day (ward level)
+occupancy_rate,occupied_beds / staffed_beds
+available_bed_ratio,1 - occupancy_rate
+closed_bed_ratio,closed_beds / total_beds
+staffed_bed_ratio,staffed_beds / total_beds
+hours_ge_85pct / hours_ge_90pct,Share of hours in the day at/above 85%/90% occupancy (bottleneck exposure)
+day_of_week / is_weekend / month / day_of_year / week_of_year,Calendar features
+dow_sin / dow_cos / month_sin / month_cos,Cyclical encodings of day-of-week and month
+is_holiday,UK (England & Wales) public holiday indicator
+occupied_lag_1/7/14/28,Occupied beds 1/7/14/28 days earlier in the same series
+occupied_roll_mean/std_7/14/30,Rolling mean/std of occupied_beds over the trailing 7/14/30 days (shifted to exclude the current day)
+bottleneck_roll7_ge90pct,Rolling 7-day average of hours_ge_90pct (shifted)
+n_admissions / n_emergency_admissions / n_elective_admissions,"Daily admission counts by type, same ward"
+n_admissions_lag1 / n_admissions_roll7,Lagged/rolling admission-count features
+median_los_roll30,"Rolling 30-day median length of stay (hours), forward-filled and ward-median-backfilled where sparse"
+ed_arrivals / ed_admitted / ed_high_acuity_arrivals,"Daily ED arrival counts, hospital level"
+ed_arrivals_lag1 / ed_arrivals_roll7 / ed_high_acuity_arrivals_roll7,Lagged/rolling ED arrival features
+n_scheduled,Elective surgeries scheduled for this exact date (specialty mapped to ward)
+surgeries_scheduled_next_7d,"Forward-looking: surgeries scheduled over the next 7 days (known in advance, not leakage)"
+safe_staffing_rate_lag1 / safe_staffing_rate_roll7_lag1,Lagged safe-staffing-ratio-met rate
+target_next_day_occupied / target_next_week_occupied,Forecast targets: occupied_beds 1 day / 7 days ahead
+split,"train / validation / test / future_unscored, assigned by date"

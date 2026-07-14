@@ -1,0 +1,7 @@
+{
+  "num_leaves": 15,
+  "n_estimators": 200,
+  "min_child_samples": 40,
+  "max_depth": 8,
+  "learning_rate": 0.05
+}

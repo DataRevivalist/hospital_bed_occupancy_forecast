@@ -1,0 +1,11 @@
+{
+  "daily_model": "LightGBM",
+  "daily_model_file": "lightgbm_daily_tuned.txt",
+  "weekly_model": "LightGBM",
+  "weekly_model_file": "lightgbm_weekly.txt",
+  "hourly_model": "LightGBM",
+  "hourly_model_file": "lightgbm_hourly_ed.txt",
+  "daily_test_rmse": 1.4069621216031845,
+  "weekly_test_rmse": 2.6763984022687315,
+  "hourly_test_rmse": 2.306230752994518
+}

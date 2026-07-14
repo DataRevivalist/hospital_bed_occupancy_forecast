@@ -1,0 +1,13 @@
+dataset,issue,action_taken,rows_affected
+admissions_discharges,Inconsistent casing/whitespace in specialty/ward/discharge_destination,"Trimmed, collapsed whitespace, Title-Cased, restored ICU acronym",131479
+admissions_discharges,Exact full-row duplicate records,Dropped duplicate rows,486
+admissions_discharges,Residual admission_id duplicates with partial missingness,Kept the more complete row per admission_id (preferring non-null discharge_destination),37
+admissions_discharges,discharge_datetime earlier than admission_datetime (data-entry error),Dropped affected rows (timestamps cannot be trusted for these episodes),196
+admissions_discharges,Missing length_of_stay_hours,Recomputed from admission/discharge timestamps,2352
+admissions_discharges,length_of_stay_hours inconsistent with timestamps,Overwritten with recomputed value from timestamps,0
+admissions_discharges,Missing discharge_destination for discharged episodes,Filled with explicit 'Undisclosed' category (destination genuinely not captured at source),3246
+bed_inventory_occupancy,Missing hourly occupied_beds readings,"Linearly interpolated within each hospital-ward-bed_type series, rounded, and clipped to a valid [0, staffed_beds] range",2105
+ed_outpatient_arrivals,Inconsistent casing in arrival_mode,"Trimmed, collapsed whitespace, Title-Cased",361975
+ed_outpatient_arrivals,time_to_admission not applicable for non-admitted arrivals (NaN unusable by models),"Added binary flag 'time_to_admission_applicable' to preserve the distinction, then filled time_to_admission with 0 for non-applicable rows",255459
+elective_surgery_schedule,cancellation_reason null for completed surgeries,Filled with 'Not Cancelled' (structurally not applicable),23365
+elective_surgery_schedule,Missing expected_los_days,Imputed using the median expected_los_days for the same procedure_group,507
