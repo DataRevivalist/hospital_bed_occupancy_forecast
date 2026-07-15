@@ -15,37 +15,9 @@ app/          the deployed Streamlit application: just app.py and requirements.t
               directly from the data/ and models/ folders above (no duplicate copies)
 ```
 
-## Running the App
+## Accessing the App
+https://hospital-bed-occupancy-forecast.streamlit.app/
 
-```
-cd app
-pip install -r requirements.txt
-streamlit run app.py
-```
-
-The app locates data/processed/ and models/ automatically, relative to its own file location,
-so it must stay inside an app/ folder that sits directly under the same repository root as
-data/ and models/. If a required file is missing, the app will show exactly which file and
-which path it expected, rather than crashing.
-
-## Running the Monitoring Pipeline
-
-```
-python monitoring/bed_demand_monitoring.py
-```
-
-See `monitoring/bed_demand_monitoring.py` docstrings for `monitor_performance`,
-`check_for_drift`, and `retrain_daily_model`, which are designed to be called from a
-scheduler (e.g. a monthly cron job, or triggered whenever drift is detected).
-
-## Deploying on Streamlit Community Cloud
-
-1. Push this entire repository to GitHub (data/ and models/ included; every file here is
-   well under GitHub's size limits).
-2. On share.streamlit.io, create a new app, select this repository and branch, and set the
-   main file path to `app/app.py`.
-3. Streamlit Cloud installs from `app/requirements.txt` automatically, since it looks in the
-   same folder as the main file first.
 
 ## Key Findings by Notebook
 
@@ -65,7 +37,3 @@ scheduler (e.g. a monthly cron job, or triggered whenever drift is detected).
 - **07 (Deployment):** shipped the Streamlit app, operational alerts, and a continuous
   learning pipeline, reading directly from the project's existing data/ and models/ folders.
 
-## Known Limitations
-
-See `model_card.md` for the full list. The most important: this model should not be used alone
-to forecast the bed-capacity impact of a staffing shortage (see Notebook 06 Section 8).
