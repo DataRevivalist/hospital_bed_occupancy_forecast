@@ -25,8 +25,8 @@ st.set_page_config(
     layout="wide",
 )
 
-DATA_DIR = Path(__file__).parent / "data"
-MODEL_DIR = Path(__file__).parent / "models"
+DATA_DIR = Path(r"C:\Users\ifech\OneDrive\Desktop\hospital_bed_occupancy_forecast\hospital_bed_occupancy_forecast\data").parent / "data"
+MODEL_DIR = Path(r"C:\Users\ifech\OneDrive\Desktop\hospital_bed_occupancy_forecast\hospital_bed_occupancy_forecast\models").parent / "models"
 
 EXCLUDE_COLS = ['hospital_id', 'ward', 'bed_type', 'date', 'target_next_day_occupied',
                 'target_next_week_occupied', 'split', 'median_los_hours']
