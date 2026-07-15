@@ -39,6 +39,12 @@ file), a documented trade-off rather than the single most accurate option availa
    documented in Notebook 03 that is a simplification for Orthopaedics (split evenly across
    Ward A/B).
 
+## Deployment Notes
+The Streamlit app (`app/app.py`) reads data and model files directly from the repository's
+`data/processed/` and `models/` folders; it does not keep a separate copy. Keeping the app
+folder free of duplicated data avoids the two copies silently going out of sync.
+
 ## Retraining
-See `monitoring/bed_demand_monitoring.py`. Retraining uses the identical feature engineering and model
-configuration validated in Notebooks 03-05, applied to all data up to the retraining date.
+See `monitoring/bed_demand_monitoring.py`. Retraining uses the identical feature engineering
+and model configuration validated in Notebooks 03-05, applied to all data up to the
+retraining date.

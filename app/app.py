@@ -3,6 +3,28 @@ Albion Care Network - Predictive Bed Demand Forecasting
 Streamlit operational dashboard.
 
 Run with: streamlit run app.py
+
+Folder layout this file expects (repo root is the parent of this app/ folder):
+
+    hospital_bed_occupancy_forecast/     <- repo root
+      app/
+        app.py                          <- this file
+        requirements.txt
+      data/
+        processed/
+          daily_feature_panel.parquet
+          hospital_reference_clean.parquet
+          hourly_ed_arrivals_panel.parquet
+      models/
+        lightgbm_daily_tuned.txt
+        lightgbm_weekly.txt
+        lightgbm_hourly_ed.txt
+        shap_explainer_background.pkl
+
+There is deliberately no separate copy of data/models inside app/ itself.
+This file reads directly from the single, real data/ and models/ folders
+that Notebooks 01-06 already produce at the repo root, so there is only
+ever one copy of each file to keep in sync.
 """
 
 import warnings
@@ -25,8 +47,60 @@ st.set_page_config(
     layout="wide",
 )
 
-DATA_DIR = Path(r"C:\Users\ifech\OneDrive\Desktop\hospital_bed_occupancy_forecast\hospital_bed_occupancy_forecast\data").parent / "data"
-MODEL_DIR = Path(r"C:\Users\ifech\OneDrive\Desktop\hospital_bed_occupancy_forecast\hospital_bed_occupancy_forecast\models").parent / "models"
+# This file lives at <repo_root>/app/app.py, so its own parent is app/ and
+# the parent of that is the repo root. Resolving to an absolute path first
+# means this works correctly regardless of the working directory the app
+# happens to be launched from.
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = REPO_ROOT / "data" / "processed"
+MODEL_DIR = REPO_ROOT / "models"
+
+REQUIRED_DATA_FILES = [
+    "daily_feature_panel.parquet",
+    "hospital_reference_clean.parquet",
+    "hourly_ed_arrivals_panel.parquet",
+]
+REQUIRED_MODEL_FILES = [
+    "lightgbm_daily_tuned.txt",
+    "lightgbm_weekly.txt",
+    "lightgbm_hourly_ed.txt",
+    "shap_explainer_background.pkl",
+]
+
+
+def check_required_files():
+    """Check every file this app needs before trying to load any of them, and show
+    a clear, specific error naming exactly what is missing and where it was expected,
+    rather than letting a bare FileNotFoundError and a raw Python traceback surface
+    from deep inside a caching decorator. This turns a deployment misconfiguration
+    (wrong folder structure, a file that never made it into the repo) into something
+    fixable in seconds instead of a confusing stack trace."""
+    missing = []
+    for fname in REQUIRED_DATA_FILES:
+        path = DATA_DIR / fname
+        if not path.is_file():
+            missing.append(str(path))
+    for fname in REQUIRED_MODEL_FILES:
+        path = MODEL_DIR / fname
+        if not path.is_file():
+            missing.append(str(path))
+
+    if missing:
+        st.error(
+            "This app cannot start because required data/model files are missing.\n\n"
+            "Expected repo layout:\n"
+            "```\n"
+            f"{REPO_ROOT.name}/\n"
+            "  app/app.py          <- this file\n"
+            "  data/processed/     <- daily_feature_panel.parquet and 2 others\n"
+            "  models/             <- lightgbm_daily_tuned.txt and 3 others\n"
+            "```\n\n"
+            "Missing file(s):\n" + "\n".join(f"- `{p}`" for p in missing)
+        )
+        st.stop()
+
+
+check_required_files()
 
 EXCLUDE_COLS = ['hospital_id', 'ward', 'bed_type', 'date', 'target_next_day_occupied',
                 'target_next_week_occupied', 'split', 'median_los_hours']
