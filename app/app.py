@@ -389,12 +389,34 @@ col1.metric("Current occupied beds", f"{baseline_row['occupied_beds']:.1f}",
                  f"occupancy, so it is not affected by the Scenario, 72-hour window, or Time "
                  f"of Day filters.")
 col2.metric("Current occupancy", f"{baseline_row['occupancy_rate']:.0%}")
+
+# delta_color="inverse" flips Streamlit's default red/green so that an INCREASE toward
+# (or past) the bottleneck threshold shows red, matching the alert banner below, rather
+# than the default green-for-positive which would otherwise show a rising, worsening
+# forecast in the same color as good news -- a genuine mismatch a user flagged after
+# seeing a green "+0.4" arrow sitting right next to a red CRITICAL alert.
+daily_forecast_delta_color = "inverse" if forecast_occ_rate >= WARNING_THRESHOLD else "normal"
 col3.metric("Forecast tomorrow", f"{active_daily_forecast:.1f} beds",
             f"{active_daily_forecast - baseline_row['occupied_beds']:+.1f}",
-            help="Under the selected scenario filter" if scenario_active else None)
+            delta_color=daily_forecast_delta_color,
+            help=(
+                ("Under the selected scenario filter. " if scenario_active else "") +
+                ("Colored red because this increase is pushing occupancy toward or past "
+                 "the bottleneck threshold, not because the number itself is negative."
+                 if daily_forecast_delta_color == "inverse" else "")
+            ) or None)
+
+weekly_forecast_occ_rate = active_weekly_forecast / baseline_row['staffed_beds']
+weekly_forecast_delta_color = "inverse" if weekly_forecast_occ_rate >= WARNING_THRESHOLD else "normal"
 col4.metric("Forecast next week", f"{active_weekly_forecast:.1f} beds",
             f"{active_weekly_forecast - baseline_row['occupied_beds']:+.1f}",
-            help="Under the selected scenario filter" if scenario_active else None)
+            delta_color=weekly_forecast_delta_color,
+            help=(
+                ("Under the selected scenario filter. " if scenario_active else "") +
+                ("Colored red because this increase is pushing occupancy toward or past "
+                 "the bottleneck threshold, not because the number itself is negative."
+                 if weekly_forecast_delta_color == "inverse" else "")
+            ) or None)
 
 # -----------------------------------------------------------------------------
 # KPI row 2: hourly ED arrivals snapshot -- this is the one genuinely wired to
