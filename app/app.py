@@ -35,6 +35,7 @@ import numpy as np
 import lightgbm as lgb
 import shap
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import streamlit as st
 from pathlib import Path
 
@@ -118,6 +119,36 @@ EMERGENCY_SPIKE_MULTIPLIER = 2.2
 DELAYED_DISCHARGE_LOS_MULTIPLIER = 1.3
 STAFFING_SHORTAGE_RATE = 0.70
 
+SCENARIO_OPTIONS = [
+    "No scenario (baseline)",
+    "Flu outbreak (winter emergency surge)",
+    "Delayed discharges",
+    "Emergency admission spike",
+    "Staffing shortage",
+]
+# Scenarios that plausibly change ED arrival volume (used by the hourly arrivals filter
+# below). Delayed discharges and staffing shortage act on occupancy/staffing directly,
+# not on how many patients arrive at the door, per the Notebook 06 scenario design, so
+# they deliberately leave the arrivals chart unchanged.
+ARRIVAL_AFFECTING_SCENARIOS = {
+    "Flu outbreak (winter emergency surge)": FLU_OUTBREAK_MULTIPLIER,
+    "Emergency admission spike": EMERGENCY_SPIKE_MULTIPLIER,
+}
+
+# Time-of-day buckets used by Filters 2 and 4. Three categories were requested (not four),
+# so "Evening" is defined to also cover overnight hours (18:00-05:59), keeping every hour
+# of the day assigned to exactly one bucket rather than silently dropping the night hours.
+TIME_OF_DAY_OPTIONS = ["Morning", "Afternoon", "Evening"]
+
+
+def time_of_day_bucket(hour):
+    if 6 <= hour < 12:
+        return "Morning"
+    elif 12 <= hour < 18:
+        return "Afternoon"
+    else:
+        return "Evening"
+
 
 # -----------------------------------------------------------------------------
 # Cached data and model loading
@@ -135,6 +166,13 @@ def load_daily_panel():
 @st.cache_data
 def load_hospital_reference():
     return pd.read_parquet(DATA_DIR / "hospital_reference_clean.parquet")
+
+
+@st.cache_data
+def load_hourly_panel():
+    df = pd.read_parquet(DATA_DIR / "hourly_ed_arrivals_panel.parquet")
+    df['time_of_day'] = df['hour'].apply(time_of_day_bucket)
+    return df
 
 
 @st.cache_resource
@@ -167,7 +205,8 @@ def predict(booster, df, feature_cols):
 def apply_scenario(baseline_row, scenario, intensity):
     """Return a perturbed copy of a single baseline row for the given scenario.
     `intensity` is a 0-2 multiplier on the default effect size, so the app user can dial
-    a scenario up or down from the Notebook 06 reference magnitude (intensity = 1.0)."""
+    a scenario up or down from the Notebook 06 reference magnitude (intensity = 1.0).
+    Returns the baseline row unchanged if no scenario is selected."""
     row = baseline_row.copy()
 
     if scenario == "Flu outbreak (winter emergency surge)":
@@ -212,11 +251,13 @@ def apply_scenario(baseline_row, scenario, intensity):
 # -----------------------------------------------------------------------------
 daily, FEATURE_COLS = load_daily_panel()
 hospital_ref = load_hospital_reference()
+hourly = load_hourly_panel()
 daily_model = load_daily_model()
 weekly_model = load_weekly_model()
 explainer = load_shap_explainer(daily_model)
 
 LATEST_DATE = daily['date'].max()
+LATEST_HOUR = hourly['datetime'].max()
 
 # -----------------------------------------------------------------------------
 # Sidebar controls
@@ -241,39 +282,94 @@ bed_type_options = sorted(daily.loc[
 selected_bed_type = st.sidebar.selectbox("Bed type", bed_type_options)
 
 st.sidebar.markdown("---")
+st.sidebar.subheader("Time-Based Filters")
+
+hourly_min_date = hourly['datetime'].min().normalize().date()
+hourly_max_start_date = (LATEST_HOUR - pd.Timedelta(hours=71)).normalize().date()
+default_start_date = (LATEST_HOUR - pd.Timedelta(hours=71)).normalize().date()
+
+window_start_date = st.sidebar.date_input(
+    "72-hour window start date",
+    value=default_start_date,
+    min_value=hourly_min_date,
+    max_value=hourly_max_start_date,
+    help="Picks a 3-day (72-hour) window for the hourly arrivals views below. "
+         "The window always runs from 00:00 on this date for exactly 72 hours.",
+)
+window_start = pd.Timestamp(window_start_date)
+window_end = window_start + pd.Timedelta(hours=72)
+
+selected_times_of_day = st.sidebar.multiselect(
+    "Time of day",
+    TIME_OF_DAY_OPTIONS,
+    default=TIME_OF_DAY_OPTIONS,
+    help="Morning = 06:00-11:59, Afternoon = 12:00-17:59, Evening = 18:00-05:59 "
+         "(evening bucket also covers overnight hours).",
+)
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("Scenario Filter")
+st.sidebar.caption(
+    "Applies to every forecast, alert, chart, and explanation on this page, using the "
+    "same evidence-grounded framework validated in Notebook 06."
+)
+selected_scenario = st.sidebar.selectbox("Scenario", SCENARIO_OPTIONS)
+if selected_scenario != "No scenario (baseline)":
+    scenario_intensity = st.sidebar.slider(
+        "Scenario intensity", 0.0, 2.0, 1.0, 0.1,
+        help="1.0 reproduces the Notebook 06 reference magnitude; higher or lower scales it.",
+    )
+else:
+    scenario_intensity = 0.0
+
+st.sidebar.markdown("---")
 st.sidebar.caption(f"Data current to {LATEST_DATE.date()}")
 st.sidebar.caption("Model: LightGBM (selected in Notebook 05 based on test-set performance)")
 
 # -----------------------------------------------------------------------------
-# Current series and forecast
+# Current series, baseline row, and scenario-adjusted row
 # -----------------------------------------------------------------------------
 series = (daily[(daily['hospital_id'] == selected_hospital_id) &
                 (daily['ward'] == selected_ward) &
                 (daily['bed_type'] == selected_bed_type)]
           .sort_values('date').reset_index(drop=True))
-latest_row = series[series['date'] == LATEST_DATE].iloc[0]
+baseline_row = series[series['date'] == LATEST_DATE].iloc[0]
+active_row = apply_scenario(baseline_row, selected_scenario, scenario_intensity)
+active_df = pd.DataFrame([active_row])
 
-daily_forecast = predict(daily_model, series[series['date'] == LATEST_DATE], FEATURE_COLS)[0]
-weekly_forecast = predict(weekly_model, series[series['date'] == LATEST_DATE], FEATURE_COLS)[0]
-forecast_occ_rate = daily_forecast / latest_row['staffed_beds']
+baseline_forecast = predict(daily_model, series[series['date'] == LATEST_DATE], FEATURE_COLS)[0]
+active_daily_forecast = predict(daily_model, active_df, FEATURE_COLS)[0]
+active_weekly_forecast = predict(weekly_model, active_df, FEATURE_COLS)[0]
+forecast_occ_rate = active_daily_forecast / baseline_row['staffed_beds']
+
+scenario_active = selected_scenario != "No scenario (baseline)"
 
 st.title(f"{selected_hospital_name}: {selected_ward} ({selected_bed_type})")
-st.caption("AI-powered bed demand forecast, scenario simulation, and explainability")
+if scenario_active:
+    st.caption(
+        f"AI-powered bed demand forecast, scenario simulation, and explainability -- "
+        f"showing **{selected_scenario}** at intensity {scenario_intensity:.1f}x"
+    )
+else:
+    st.caption("AI-powered bed demand forecast, scenario simulation, and explainability")
 
 # -----------------------------------------------------------------------------
-# KPI row
+# KPI row (reflects the active scenario, per the sidebar Scenario Filter)
 # -----------------------------------------------------------------------------
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Current occupied beds", f"{latest_row['occupied_beds']:.1f}",
-            help=f"Staffed beds: {latest_row['staffed_beds']:.0f}")
-col2.metric("Current occupancy", f"{latest_row['occupancy_rate']:.0%}")
-col3.metric("Forecast tomorrow", f"{daily_forecast:.1f} beds",
-            f"{daily_forecast - latest_row['occupied_beds']:+.1f}")
-col4.metric("Forecast next week", f"{weekly_forecast:.1f} beds",
-            f"{weekly_forecast - latest_row['occupied_beds']:+.1f}")
+col1.metric("Current occupied beds", f"{baseline_row['occupied_beds']:.1f}",
+            help=f"Staffed beds: {baseline_row['staffed_beds']:.0f}. Not affected by the "
+                 f"scenario filter, since this reflects today's already-observed occupancy.")
+col2.metric("Current occupancy", f"{baseline_row['occupancy_rate']:.0%}")
+col3.metric("Forecast tomorrow", f"{active_daily_forecast:.1f} beds",
+            f"{active_daily_forecast - baseline_row['occupied_beds']:+.1f}",
+            help="Under the selected scenario filter" if scenario_active else None)
+col4.metric("Forecast next week", f"{active_weekly_forecast:.1f} beds",
+            f"{active_weekly_forecast - baseline_row['occupied_beds']:+.1f}",
+            help="Under the selected scenario filter" if scenario_active else None)
 
 # -----------------------------------------------------------------------------
-# Operational alert banner
+# Operational alert banner (reflects the active scenario)
 # -----------------------------------------------------------------------------
 if forecast_occ_rate >= CRITICAL_THRESHOLD:
     st.error(
@@ -289,6 +385,13 @@ elif forecast_occ_rate >= WARNING_THRESHOLD:
 else:
     st.success(f"Tomorrow's forecast occupancy ({forecast_occ_rate:.0%}) is within normal range.")
 
+if scenario_active:
+    st.caption(
+        f"Alert reflects the **{selected_scenario}** scenario at intensity "
+        f"{scenario_intensity:.1f}x. Switch back to \u201cNo scenario (baseline)\u201d in the "
+        f"sidebar to see the unadjusted alert."
+    )
+
 # -----------------------------------------------------------------------------
 # Historical trend chart
 # -----------------------------------------------------------------------------
@@ -296,61 +399,143 @@ st.subheader("Recent Occupancy Trend")
 recent = series[series['date'] >= LATEST_DATE - pd.Timedelta(days=60)]
 fig, ax = plt.subplots(figsize=(11, 3.5))
 ax.plot(recent['date'], recent['occupied_beds'], color='#2c6e91', linewidth=1.5, label='Actual occupied beds')
-ax.axhline(latest_row['staffed_beds'] * WARNING_THRESHOLD, color='#e59866', linestyle='--',
+ax.axhline(baseline_row['staffed_beds'] * WARNING_THRESHOLD, color='#e59866', linestyle='--',
            linewidth=1, label=f'{WARNING_THRESHOLD:.0%} threshold')
-ax.axhline(latest_row['staffed_beds'] * CRITICAL_THRESHOLD, color='#c0392b', linestyle='--',
+ax.axhline(baseline_row['staffed_beds'] * CRITICAL_THRESHOLD, color='#c0392b', linestyle='--',
            linewidth=1, label=f'{CRITICAL_THRESHOLD:.0%} threshold')
-ax.scatter([LATEST_DATE + pd.Timedelta(days=1)], [daily_forecast], color='#c0392b', zorder=5,
-           s=60, label='Tomorrow (forecast)')
+ax.scatter([LATEST_DATE + pd.Timedelta(days=1)], [baseline_forecast], color='#999999', zorder=4,
+           s=50, label='Tomorrow (baseline forecast)')
+if scenario_active:
+    ax.scatter([LATEST_DATE + pd.Timedelta(days=1)], [active_daily_forecast], color='#c0392b', zorder=5,
+               s=60, marker='D', label=f'Tomorrow (under {selected_scenario})')
 ax.legend(loc='upper left', fontsize=8)
 ax.set_ylabel('Occupied beds')
 st.pyplot(fig)
 plt.close(fig)
 
 # -----------------------------------------------------------------------------
-# Scenario simulation
+# Hourly Arrivals - 72-Hour Window (Filters 1 and 2: hour range + time of day)
 # -----------------------------------------------------------------------------
-st.subheader("Scenario Simulation")
+st.markdown("---")
+st.subheader("Hourly Arrivals: 72-Hour Window")
 st.caption(
-    "Simulates the four operational scenarios named in the project brief, using the same "
-    "evidence-grounded framework validated in Notebook 06. Intensity 1.0 reproduces the "
-    "reference magnitude used in that notebook; values above or below scale it up or down."
+    f"{window_start.strftime('%d %b %Y')} 00:00 to {(window_end - pd.Timedelta(hours=1)).strftime('%d %b %Y')} "
+    f"23:00, for {selected_hospital_name}. ED arrivals are recorded at the hospital level in the "
+    f"source data, not per ward, so this view is hospital-wide rather than ward-specific."
 )
 
-scenario = st.selectbox(
-    "Scenario",
-    ["Flu outbreak (winter emergency surge)", "Delayed discharges",
-     "Emergency admission spike", "Staffing shortage"],
-)
-intensity = st.slider("Scenario intensity", 0.0, 2.0, 1.0, 0.1)
+hospital_hourly = hourly[
+    (hourly['hospital_id'] == selected_hospital_id) &
+    (hourly['datetime'] >= window_start) &
+    (hourly['datetime'] < window_end)
+].sort_values('datetime').copy()
 
-baseline_row = series[series['date'] == LATEST_DATE]
-scenario_row = apply_scenario(baseline_row.iloc[0], scenario, intensity)
-scenario_df = pd.DataFrame([scenario_row])
-scenario_forecast = predict(daily_model, scenario_df, FEATURE_COLS)[0]
-delta = scenario_forecast - daily_forecast
+# Apply the same scenario multiplier used for the daily model, where the scenario
+# plausibly affects arrival volume (see ARRIVAL_AFFECTING_SCENARIOS above).
+if selected_scenario in ARRIVAL_AFFECTING_SCENARIOS:
+    base_mult = ARRIVAL_AFFECTING_SCENARIOS[selected_scenario]
+    mult = 1 + (base_mult - 1) * scenario_intensity
+    hospital_hourly['ed_arrivals_display'] = hospital_hourly['ed_arrivals'] * mult
+else:
+    hospital_hourly['ed_arrivals_display'] = hospital_hourly['ed_arrivals']
 
-scol1, scol2 = st.columns(2)
-scol1.metric("Baseline forecast (tomorrow)", f"{daily_forecast:.1f} beds")
-scol2.metric(f"{scenario} forecast", f"{scenario_forecast:.1f} beds", f"{delta:+.1f}")
+hospital_hourly_filtered = hospital_hourly[hospital_hourly['time_of_day'].isin(selected_times_of_day)]
 
-if scenario == "Staffing shortage":
-    st.info(
-        "Note (from Notebook 06): this model does not treat staffing shortages as a strong "
-        "driver of next-day occupancy, most likely because the true relationship runs the "
-        "other way (high occupancy strains staffing, not the reverse). A small forecast "
-        "change here should not be read as reassurance that staffing shortages are low-risk; "
-        "it means this particular model is not the right tool for forecasting a staffing "
-        "crisis's bed-capacity impact."
+if hospital_hourly_filtered.empty:
+    st.info("No hours match the current Time of Day filter for this window. Adjust the filter in the sidebar.")
+else:
+    tod_colors = {'Morning': '#F2994A', 'Afternoon': '#2C6E91', 'Evening': '#5C6B73'}
+    fig3, ax3 = plt.subplots(figsize=(11, 3.8))
+    ax3.plot(hospital_hourly['datetime'], hospital_hourly['ed_arrivals_display'],
+             color='#CBD5D9', linewidth=1, zorder=1, label='All hours in window')
+    for tod in TIME_OF_DAY_OPTIONS:
+        if tod not in selected_times_of_day:
+            continue
+        subset = hospital_hourly_filtered[hospital_hourly_filtered['time_of_day'] == tod]
+        ax3.scatter(subset['datetime'], subset['ed_arrivals_display'], color=tod_colors[tod],
+                    s=18, zorder=3, label=tod)
+    ax3.set_ylabel('ED arrivals per hour')
+    ax3.xaxis.set_major_formatter(mdates.DateFormatter('%d %b\n%H:%M'))
+    ax3.legend(loc='upper left', fontsize=8, ncol=4)
+    if selected_scenario in ARRIVAL_AFFECTING_SCENARIOS:
+        ax3.set_title(f"Shown under {selected_scenario} (intensity {scenario_intensity:.1f}x)", fontsize=10)
+    st.pyplot(fig3)
+    plt.close(fig3)
+
+if scenario_active and selected_scenario not in ARRIVAL_AFFECTING_SCENARIOS:
+    st.caption(
+        f"Note: \u201c{selected_scenario}\u201d does not adjust arrival volume in this view -- "
+        "in the Notebook 06 scenario design, it acts on occupancy or staffing directly, "
+        "not on how many patients arrive at the door."
     )
 
 # -----------------------------------------------------------------------------
-# Explainability
+# Arrivals by Time of Day (Filter 4)
+# -----------------------------------------------------------------------------
+st.subheader("Arrivals by Time of Day")
+st.caption(
+    "Average hourly arrivals within each time-of-day period, for the 72-hour window and "
+    "scenario filters selected above. Updates automatically as those filters change."
+)
+
+if hospital_hourly_filtered.empty:
+    st.info("No data to summarise for the current Time of Day filter.")
+else:
+    tod_summary = (hospital_hourly_filtered.groupby('time_of_day')['ed_arrivals_display']
+                   .mean().reindex([t for t in TIME_OF_DAY_OPTIONS if t in selected_times_of_day]))
+    fig4, ax4 = plt.subplots(figsize=(7, 3.8))
+    bar_colors = [tod_colors[t] for t in tod_summary.index]
+    ax4.bar(tod_summary.index, tod_summary.values, color=bar_colors)
+    ax4.set_ylabel('Average arrivals per hour')
+    for i, v in enumerate(tod_summary.values):
+        ax4.text(i, v + max(tod_summary.values) * 0.02, f'{v:.1f}', ha='center', fontsize=10)
+    st.pyplot(fig4)
+    plt.close(fig4)
+
+    fastest = tod_summary.idxmax()
+    st.caption(
+        f"Busiest period in this window: **{fastest}** "
+        f"({tod_summary.max():.1f} arrivals/hour on average)."
+    )
+
+# -----------------------------------------------------------------------------
+# Scenario impact summary (Filter 3: global scenario, all analyses)
+# -----------------------------------------------------------------------------
+st.markdown("---")
+st.subheader("Scenario Impact Summary")
+
+if not scenario_active:
+    st.info(
+        "No scenario is currently selected. Choose one from the **Scenario Filter** in the "
+        "sidebar to see its effect on tomorrow's forecast, the alert banner, the trend chart, "
+        "and the arrivals views above."
+    )
+else:
+    delta = active_daily_forecast - baseline_forecast
+    scol1, scol2 = st.columns(2)
+    scol1.metric("Baseline forecast (tomorrow)", f"{baseline_forecast:.1f} beds")
+    scol2.metric(f"Under {selected_scenario}", f"{active_daily_forecast:.1f} beds", f"{delta:+.1f}")
+
+    if selected_scenario == "Staffing shortage":
+        st.info(
+            "Note (from Notebook 06): this model does not treat staffing shortages as a strong "
+            "driver of next-day occupancy, most likely because the true relationship runs the "
+            "other way (high occupancy strains staffing, not the reverse). A small forecast "
+            "change here should not be read as reassurance that staffing shortages are low-risk; "
+            "it means this particular model is not the right tool for forecasting a staffing "
+            "crisis's bed-capacity impact."
+        )
+
+# -----------------------------------------------------------------------------
+# Explainability (reflects the active scenario)
 # -----------------------------------------------------------------------------
 st.subheader("Why This Forecast: Feature Contributions")
-st.caption("SHAP values showing which factors pushed tomorrow's forecast up or down for this ward.")
+st.caption(
+    "SHAP values showing which factors pushed tomorrow's forecast up or down for this ward"
+    + (f", under the **{selected_scenario}** scenario." if scenario_active else ".")
+)
 
-X_explain = baseline_row[FEATURE_COLS + CAT_COLS].copy()
+X_explain = active_df[FEATURE_COLS + CAT_COLS].copy()
 for c in CAT_COLS:
     X_explain[c] = X_explain[c].astype('category')
 shap_values_row = explainer.shap_values(X_explain)[0]
@@ -385,4 +570,6 @@ with st.expander("Model information and known limitations"):
       in isolation (see the Staffing Shortage scenario note above).
     - Forecasts assume operational patterns similar to the 2024-2025 training period; a
       structural change (e.g. a new ward, major policy change) would need retraining.
+    - ED arrivals are recorded at the hospital level, not per ward, so the hourly arrivals
+      views above are hospital-wide even when a specific ward is selected in the sidebar.
     """)
