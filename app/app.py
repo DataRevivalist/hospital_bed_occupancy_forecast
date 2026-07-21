@@ -200,12 +200,12 @@ def predict(booster, df, feature_cols):
 
 
 # -----------------------------------------------------------------------------
-# Scenario simulation (same framework validated in Notebook 06)
+# Scenario simulation 
 # -----------------------------------------------------------------------------
 def apply_scenario(baseline_row, scenario, intensity):
     """Return a perturbed copy of a single baseline row for the given scenario.
     `intensity` is a 0-2 multiplier on the default effect size, so the app user can dial
-    a scenario up or down from the Notebook 06 reference magnitude (intensity = 1.0).
+    a scenario up or down from the original reference magnitude (intensity = 1.0).
     Returns the baseline row unchanged if no scenario is selected."""
     row = baseline_row.copy()
 
@@ -310,8 +310,7 @@ selected_times_of_day = st.sidebar.multiselect(
 st.sidebar.markdown("---")
 st.sidebar.subheader("Scenario Filter")
 st.sidebar.caption(
-    "Applies to every forecast, alert, chart, and explanation on this page, using the "
-    "same evidence-grounded framework validated in Notebook 06."
+    "Applies to every forecast, alert, chart, and explanation on this page."
 )
 selected_scenario = st.sidebar.selectbox("Scenario", SCENARIO_OPTIONS)
 if selected_scenario != "No scenario (baseline)":
@@ -324,7 +323,7 @@ else:
 
 st.sidebar.markdown("---")
 st.sidebar.caption(f"Data current to {LATEST_DATE.date()}")
-st.sidebar.caption("Model: LightGBM (selected in Notebook 05 based on test-set performance)")
+st.sidebar.caption("Model: LightGBM (selected based on test-set performance)")
 
 # -----------------------------------------------------------------------------
 # Current series, baseline row, and scenario-adjusted row
@@ -374,7 +373,7 @@ col4.metric("Forecast next week", f"{active_weekly_forecast:.1f} beds",
 if forecast_occ_rate >= CRITICAL_THRESHOLD:
     st.error(
         f"CRITICAL: tomorrow's forecast occupancy is {forecast_occ_rate:.0%}, at or above the "
-        f"{CRITICAL_THRESHOLD:.0%} bottleneck threshold identified in Notebook 02. This ward is "
+        f"{CRITICAL_THRESHOLD:.0%} bottleneck threshold identified during EDA. This ward is "
         f"forecast to be critically full."
     )
 elif forecast_occ_rate >= WARNING_THRESHOLD:
@@ -518,7 +517,7 @@ else:
 
     if selected_scenario == "Staffing shortage":
         st.info(
-            "Note (from Notebook 06): this model does not treat staffing shortages as a strong "
+            "Note: this model does not treat staffing shortages as a strong "
             "driver of next-day occupancy, most likely because the true relationship runs the "
             "other way (high occupancy strains staffing, not the reverse). A small forecast "
             "change here should not be read as reassurance that staffing shortages are low-risk; "
@@ -562,7 +561,7 @@ with st.expander("Model information and known limitations"):
     **Model:** LightGBM, selected in Notebook 05 based on held-out test-set performance
     (RMSE 1.41 beds daily, 2.68 beds weekly), trained on all 40 hospital-ward-bed_type series.
 
-    **Known limitations, documented in Notebooks 05-06:**
+    **Known limitations:**
     - The test split used for evaluation covers October-December 2025 only; a full
       multi-year seasonal backtest has not yet been performed, though the available
       December 2025 data showed no accuracy degradation in winter.
