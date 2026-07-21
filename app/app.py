@@ -200,12 +200,12 @@ def predict(booster, df, feature_cols):
 
 
 # -----------------------------------------------------------------------------
-# Scenario simulation 
+# Scenario simulation (same framework validated in Notebook 06)
 # -----------------------------------------------------------------------------
 def apply_scenario(baseline_row, scenario, intensity):
     """Return a perturbed copy of a single baseline row for the given scenario.
     `intensity` is a 0-2 multiplier on the default effect size, so the app user can dial
-    a scenario up or down from the original reference magnitude (intensity = 1.0).
+    a scenario up or down from the reference magnitude (intensity = 1.0).
     Returns the baseline row unchanged if no scenario is selected."""
     row = baseline_row.copy()
 
@@ -310,7 +310,8 @@ selected_times_of_day = st.sidebar.multiselect(
 st.sidebar.markdown("---")
 st.sidebar.subheader("Scenario Filter")
 st.sidebar.caption(
-    "Applies to every forecast, alert, chart, and explanation on this page."
+    "Applies to every forecast, alert, chart, and explanation on this page, using the "
+    "same evidence-grounded framework validated in Notebook 06."
 )
 selected_scenario = st.sidebar.selectbox("Scenario", SCENARIO_OPTIONS)
 if selected_scenario != "No scenario (baseline)":
@@ -323,7 +324,7 @@ else:
 
 st.sidebar.markdown("---")
 st.sidebar.caption(f"Data current to {LATEST_DATE.date()}")
-st.sidebar.caption("Model: LightGBM (selected based on test-set performance)")
+st.sidebar.caption("Model: LightGBM (selected in Notebook 05 based on test-set performance)")
 
 # -----------------------------------------------------------------------------
 # Current series, baseline row, and scenario-adjusted row
@@ -343,6 +344,29 @@ forecast_occ_rate = active_daily_forecast / baseline_row['staffed_beds']
 
 scenario_active = selected_scenario != "No scenario (baseline)"
 
+# -----------------------------------------------------------------------------
+# Hourly arrivals for the selected 72-hour window, time-of-day filter, and
+# scenario -- computed here (rather than lower down) specifically so the KPI
+# row below can be genuinely wired to these two filters, not just the charts
+# further down the page.
+# -----------------------------------------------------------------------------
+hospital_hourly = hourly[
+    (hourly['hospital_id'] == selected_hospital_id) &
+    (hourly['datetime'] >= window_start) &
+    (hourly['datetime'] < window_end)
+].sort_values('datetime').copy()
+
+# Apply the same scenario multiplier used for the daily model, where the scenario
+# plausibly affects arrival volume (see ARRIVAL_AFFECTING_SCENARIOS above).
+if selected_scenario in ARRIVAL_AFFECTING_SCENARIOS:
+    base_mult = ARRIVAL_AFFECTING_SCENARIOS[selected_scenario]
+    mult = 1 + (base_mult - 1) * scenario_intensity
+    hospital_hourly['ed_arrivals_display'] = hospital_hourly['ed_arrivals'] * mult
+else:
+    hospital_hourly['ed_arrivals_display'] = hospital_hourly['ed_arrivals']
+
+hospital_hourly_filtered = hospital_hourly[hospital_hourly['time_of_day'].isin(selected_times_of_day)]
+
 st.title(f"{selected_hospital_name}: {selected_ward} ({selected_bed_type})")
 if scenario_active:
     st.caption(
@@ -353,12 +377,17 @@ else:
     st.caption("AI-powered bed demand forecast, scenario simulation, and explainability")
 
 # -----------------------------------------------------------------------------
-# KPI row (reflects the active scenario, per the sidebar Scenario Filter)
+# KPI row 1: daily bed forecast (reflects Hospital/Ward/Bed type and Scenario;
+# NOT affected by the 72-hour window or Time of Day filters, since the daily
+# bed-occupancy data this is built from has no hourly resolution at all -- that
+# is a genuine limitation of the source data, not something these filters can
+# meaningfully change, so it deliberately isn't faked here).
 # -----------------------------------------------------------------------------
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Current occupied beds", f"{baseline_row['occupied_beds']:.1f}",
-            help=f"Staffed beds: {baseline_row['staffed_beds']:.0f}. Not affected by the "
-                 f"scenario filter, since this reflects today's already-observed occupancy.")
+            help=f"Staffed beds: {baseline_row['staffed_beds']:.0f}. Reflects today's actual "
+                 f"occupancy, so it is not affected by the Scenario, 72-hour window, or Time "
+                 f"of Day filters.")
 col2.metric("Current occupancy", f"{baseline_row['occupancy_rate']:.0%}")
 col3.metric("Forecast tomorrow", f"{active_daily_forecast:.1f} beds",
             f"{active_daily_forecast - baseline_row['occupied_beds']:+.1f}",
@@ -368,12 +397,64 @@ col4.metric("Forecast next week", f"{active_weekly_forecast:.1f} beds",
             help="Under the selected scenario filter" if scenario_active else None)
 
 # -----------------------------------------------------------------------------
+# KPI row 2: hourly ED arrivals snapshot -- this is the one genuinely wired to
+# the 72-hour window, Time of Day, and Scenario filters, since ED arrivals are
+# the one dataset in this app that actually has hourly resolution.
+# -----------------------------------------------------------------------------
+st.markdown("###### Hourly Arrivals Snapshot")
+st.caption(
+    f"Reflects the 72-hour window ({window_start.strftime('%d %b')}-"
+    f"{(window_end - pd.Timedelta(hours=1)).strftime('%d %b %Y')}), the Time of Day filter, "
+    f"and the Scenario filter, all selected in the sidebar. Hospital-wide, not ward-specific "
+    f"(ED arrivals are not recorded per ward in the source data)."
+)
+
+if hospital_hourly_filtered.empty:
+    st.info(
+        "No hours match the current Time of Day filter for this 72-hour window. "
+        "Adjust the filters in the sidebar to see this snapshot."
+    )
+else:
+    hcol1, hcol2, hcol3 = st.columns(3)
+
+    avg_arrivals = hospital_hourly_filtered['ed_arrivals_display'].mean()
+    baseline_avg_arrivals = hospital_hourly_filtered['ed_arrivals'].mean()
+    arrivals_delta = avg_arrivals - baseline_avg_arrivals
+    hcol1.metric(
+        "Avg arrivals/hour (filtered)", f"{avg_arrivals:.1f}",
+        f"{arrivals_delta:+.1f}" if scenario_active and selected_scenario in ARRIVAL_AFFECTING_SCENARIOS else None,
+        help="Average hourly ED arrivals across the selected 72-hour window and Time of Day filter.",
+    )
+
+    total_arrivals = hospital_hourly_filtered['ed_arrivals_display'].sum()
+    hcol2.metric(
+        "Total arrivals (filtered)", f"{total_arrivals:.0f}",
+        help="Summed across every hour matching the current window and Time of Day filter.",
+    )
+
+    tod_avg_now = hospital_hourly_filtered.groupby('time_of_day')['ed_arrivals_display'].mean()
+    busiest_period = tod_avg_now.idxmax()
+    hcol3.metric(
+        "Busiest period (filtered)", busiest_period,
+        f"{tod_avg_now.max():.1f}/hr",
+        help="Whichever Time of Day period selected in the sidebar has the highest average "
+             "arrivals within this window.",
+    )
+
+    if scenario_active and selected_scenario not in ARRIVAL_AFFECTING_SCENARIOS:
+        st.caption(
+            f"Note: \u201c{selected_scenario}\u201d does not change these arrival figures -- "
+            "in the Notebook 06 scenario design, it acts on occupancy or staffing directly, "
+            "not on how many patients arrive at the door."
+        )
+
+# -----------------------------------------------------------------------------
 # Operational alert banner (reflects the active scenario)
 # -----------------------------------------------------------------------------
 if forecast_occ_rate >= CRITICAL_THRESHOLD:
     st.error(
         f"CRITICAL: tomorrow's forecast occupancy is {forecast_occ_rate:.0%}, at or above the "
-        f"{CRITICAL_THRESHOLD:.0%} bottleneck threshold identified during EDA. This ward is "
+        f"{CRITICAL_THRESHOLD:.0%} bottleneck threshold identified in Notebook 02. This ward is "
         f"forecast to be critically full."
     )
 elif forecast_occ_rate >= WARNING_THRESHOLD:
@@ -423,22 +504,8 @@ st.caption(
     f"source data, not per ward, so this view is hospital-wide rather than ward-specific."
 )
 
-hospital_hourly = hourly[
-    (hourly['hospital_id'] == selected_hospital_id) &
-    (hourly['datetime'] >= window_start) &
-    (hourly['datetime'] < window_end)
-].sort_values('datetime').copy()
-
-# Apply the same scenario multiplier used for the daily model, where the scenario
-# plausibly affects arrival volume (see ARRIVAL_AFFECTING_SCENARIOS above).
-if selected_scenario in ARRIVAL_AFFECTING_SCENARIOS:
-    base_mult = ARRIVAL_AFFECTING_SCENARIOS[selected_scenario]
-    mult = 1 + (base_mult - 1) * scenario_intensity
-    hospital_hourly['ed_arrivals_display'] = hospital_hourly['ed_arrivals'] * mult
-else:
-    hospital_hourly['ed_arrivals_display'] = hospital_hourly['ed_arrivals']
-
-hospital_hourly_filtered = hospital_hourly[hospital_hourly['time_of_day'].isin(selected_times_of_day)]
+# hospital_hourly and hospital_hourly_filtered were already computed earlier, right before
+# the KPI row, so the two are guaranteed to stay in sync rather than being calculated twice.
 
 if hospital_hourly_filtered.empty:
     st.info("No hours match the current Time of Day filter for this window. Adjust the filter in the sidebar.")
@@ -460,13 +527,6 @@ else:
         ax3.set_title(f"Shown under {selected_scenario} (intensity {scenario_intensity:.1f}x)", fontsize=10)
     st.pyplot(fig3)
     plt.close(fig3)
-
-if scenario_active and selected_scenario not in ARRIVAL_AFFECTING_SCENARIOS:
-    st.caption(
-        f"Note: \u201c{selected_scenario}\u201d does not adjust arrival volume in this view -- "
-        "in the Notebook 06 scenario design, it acts on occupancy or staffing directly, "
-        "not on how many patients arrive at the door."
-    )
 
 # -----------------------------------------------------------------------------
 # Arrivals by Time of Day (Filter 4)
@@ -517,7 +577,7 @@ else:
 
     if selected_scenario == "Staffing shortage":
         st.info(
-            "Note: this model does not treat staffing shortages as a strong "
+            "Note (from Notebook 06): this model does not treat staffing shortages as a strong "
             "driver of next-day occupancy, most likely because the true relationship runs the "
             "other way (high occupancy strains staffing, not the reverse). A small forecast "
             "change here should not be read as reassurance that staffing shortages are low-risk; "
@@ -561,7 +621,7 @@ with st.expander("Model information and known limitations"):
     **Model:** LightGBM, selected in Notebook 05 based on held-out test-set performance
     (RMSE 1.41 beds daily, 2.68 beds weekly), trained on all 40 hospital-ward-bed_type series.
 
-    **Known limitations:**
+    **Known limitations, documented in Notebooks 05-06:**
     - The test split used for evaluation covers October-December 2025 only; a full
       multi-year seasonal backtest has not yet been performed, though the available
       December 2025 data showed no accuracy degradation in winter.
