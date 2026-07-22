@@ -299,6 +299,16 @@ window_start_date = st.sidebar.date_input(
 window_start = pd.Timestamp(window_start_date)
 window_end = window_start + pd.Timedelta(hours=72)
 
+# The window is always exactly 72 hours by design (matching the "3-day period" this
+# filter is meant to show), so the end date is computed automatically rather than picked
+# independently -- but it's shown explicitly here, right next to the start date, rather
+# than only appearing in captions further down the page where it could be easy to miss.
+window_end_display = window_end - pd.Timedelta(hours=1)  # last included hour, not the exclusive boundary
+st.sidebar.caption(
+    f"**Window end date:** {window_end_display.strftime('%d %b %Y, %H:%M')} "
+    f"(72 hours after the start date above)"
+)
+
 selected_times_of_day = st.sidebar.multiselect(
     "Time of day",
     TIME_OF_DAY_OPTIONS,
@@ -520,24 +530,10 @@ plt.close(fig)
 # -----------------------------------------------------------------------------
 st.markdown("---")
 st.subheader("Hourly Arrivals: 72-Hour Window")
-window_start_date = st.sidebar.date_input(
-    "72-hour window start date",
-    value=default_start_date,
-    min_value=hourly_min_date,
-    max_value=hourly_max_start_date,
-    help="Picks a 3-day (72-hour) window for the hourly arrivals views below. "
-         "The window always runs from 00:00 on this date for exactly 72 hours.",
-)
-window_start = pd.Timestamp(window_start_date)
-window_end = window_start + pd.Timedelta(hours=72)
-
-# Shown directly here, not just in a hover tooltip or in captions further down the page --
-# a user picking only a start date shouldn't have to guess, or scroll elsewhere, to find
-# out what the resulting end date actually is.
-window_end_display = window_end - pd.Timedelta(hours=1)
-st.sidebar.caption(
-    f"Window: **{window_start.strftime('%d %b %Y')} 00:00** to "
-    f"**{window_end_display.strftime('%d %b %Y')} 23:00** (72 hours)"
+st.caption(
+    f"{window_start.strftime('%d %b %Y')} 00:00 to {(window_end - pd.Timedelta(hours=1)).strftime('%d %b %Y')} "
+    f"23:00, for {selected_hospital_name}. ED arrivals are recorded at the hospital level in the "
+    f"source data, not per ward, so this view is hospital-wide rather than ward-specific."
 )
 
 # hospital_hourly and hospital_hourly_filtered were already computed earlier, right before
