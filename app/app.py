@@ -311,20 +311,20 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("Scenario Filter")
 st.sidebar.caption(
     "Applies to every forecast, alert, chart, and explanation on this page, using the "
-    "same evidence-grounded framework validated in Notebook 06."
+    "same evidence-grounded framework validated in the project analysis."
 )
 selected_scenario = st.sidebar.selectbox("Scenario", SCENARIO_OPTIONS)
 if selected_scenario != "No scenario (baseline)":
     scenario_intensity = st.sidebar.slider(
         "Scenario intensity", 0.0, 2.0, 1.0, 0.1,
-        help="1.0 reproduces the Notebook 06 reference magnitude; higher or lower scales it.",
+        help="1.0 reproduces the analyis reference magnitude; higher or lower scales it.",
     )
 else:
     scenario_intensity = 0.0
 
 st.sidebar.markdown("---")
 st.sidebar.caption(f"Data current to {LATEST_DATE.date()}")
-st.sidebar.caption("Model: LightGBM (selected in Notebook 05 based on test-set performance)")
+st.sidebar.caption("Model: LightGBM (selected based on test-set performance)")
 
 # -----------------------------------------------------------------------------
 # Current series, baseline row, and scenario-adjusted row
@@ -476,7 +476,7 @@ else:
 if forecast_occ_rate >= CRITICAL_THRESHOLD:
     st.error(
         f"CRITICAL: tomorrow's forecast occupancy is {forecast_occ_rate:.0%}, at or above the "
-        f"{CRITICAL_THRESHOLD:.0%} bottleneck threshold identified in Notebook 02. This ward is "
+        f"{CRITICAL_THRESHOLD:.0%} bottleneck threshold identified during the Exploratory Analysis. This ward is "
         f"forecast to be critically full."
     )
 elif forecast_occ_rate >= WARNING_THRESHOLD:
@@ -599,7 +599,7 @@ else:
 
     if selected_scenario == "Staffing shortage":
         st.info(
-            "Note (from Notebook 06): this model does not treat staffing shortages as a strong "
+            "Note: this model does not treat staffing shortages as a strong "
             "driver of next-day occupancy, most likely because the true relationship runs the "
             "other way (high occupancy strains staffing, not the reverse). A small forecast "
             "change here should not be read as reassurance that staffing shortages are low-risk; "
@@ -640,17 +640,29 @@ plt.close(fig2)
 st.markdown("---")
 with st.expander("Model information and known limitations"):
     st.markdown("""
-    **Model:** LightGBM, selected in Notebook 05 based on held-out test-set performance
+    **Model:** LightGBM, selected based on held-out test-set performance
     (RMSE 1.41 beds daily, 2.68 beds weekly), trained on all 40 hospital-ward-bed_type series.
 
-    **Known limitations, documented in Notebooks 05-06:**
-    - The test split used for evaluation covers October-December 2025 only; a full
-      multi-year seasonal backtest has not yet been performed, though the available
-      December 2025 data showed no accuracy degradation in winter.
-    - This model does not reliably forecast the bed-capacity impact of a staffing shortage
-      in isolation (see the Staffing Shortage scenario note above).
-    - Forecasts assume operational patterns similar to the 2024-2025 training period; a
-      structural change (e.g. a new ward, major policy change) would need retraining.
-    - ED arrivals are recorded at the hospital level, not per ward, so the hourly arrivals
-      views above are hospital-wide even when a specific ward is selected in the sidebar.
+    **Things This Tool Can't Do (Yet)**
+
+    - We tested this tool's accuracy using only three months of data (October to
+    December 2025). December looked good, so there's no sign of a problem in
+    winter specifically but we haven't yet checked a full year, so we can't
+    promise it holds up the same way in spring or summer.
+
+    - If a ward is short-staffed, this tool won't reliably tell you how that
+    affects bed availability. It's built to predict beds based on things like
+    how many patients are arriving and how long they're staying, not staffing
+    levels, so a staffing problem might not show up here even if it's a real
+    issue on the ground.
+
+    - The forecasts assume the hospital keeps running roughly the way it did in
+    2024 and 2025. If something changes significantly, for instance, a new ward opens, 
+    or a major policy shift happens, the tool will need to be retrained on fresh
+    data before its forecasts can be trusted again.
+
+    - The Emergency Department arrival numbers are hospital-wide, not specific to
+    whichever ward you've selected. Even if you've picked "Orthopaedics Ward A"
+    in the sidebar, the arrivals chart is still showing arrivals for the whole
+    hospital, not just that ward specifically.
     """)
