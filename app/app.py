@@ -43,7 +43,7 @@ from pathlib import Path
 # Page configuration
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Albion Care Network - Bed Demand Forecasting",
+    page_title="Bed Demand Forecasting",
     page_icon=None,
     layout="wide",
 )
