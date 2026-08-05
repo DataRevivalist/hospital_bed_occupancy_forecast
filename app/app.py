@@ -376,6 +376,59 @@ else:
 
 hospital_hourly_filtered = hospital_hourly[hospital_hourly['time_of_day'].isin(selected_times_of_day)]
 
+# -----------------------------------------------------------------------------
+# Landing / about section
+# -----------------------------------------------------------------------------
+st.title("Hospital Bed Occupancy Forecasting System")
+st.caption(
+    "A machine learning forecasting application that predicts future hospital bed demand "
+    "to support proactive capacity planning at Albion Care Network."
+)
+
+with st.expander("About This Project", expanded=True):
+    st.markdown(
+        """
+**Problem:** Albion Care Network's bed capacity was managed reactively, using historical
+averages, with admissions, occupancy, staffing, and surgery data held in separate systems
+(Notebook 01).
+
+**Solution:** Eight forecasting approaches were built and compared on genuinely held-out data
+across all 40 hospital-ward-bed_type combinations in the network (Notebooks 04-05). The
+selected model, LightGBM, reached a test-set error of 1.41 beds per day (RMSE) and explains
+97.5% of the real variation in occupancy (R\u00b2), against a naive "tomorrow looks like today"
+baseline of 1.92 beds.
+
+**Forecast horizon:** Daily (1 day ahead) and weekly (7 days ahead) bed occupancy, plus an
+hourly Emergency Department arrivals view.
+
+**Technology:** Python, LightGBM (gradient-boosted trees), SHAP for explainability, and
+Streamlit for this application.
+        """
+    )
+
+with st.expander("How to Use This App"):
+    st.markdown(
+        """
+1. **Select a hospital, ward, and bed type** in the sidebar to see the forecast for that
+   specific area.
+2. **View predicted occupancy** in the KPI row below: today's actual occupancy, and the
+   forecast for tomorrow and next week.
+3. **Compare expected demand against recent history** using the "Recent Occupancy Trend"
+   chart further down the page.
+4. **Review the factors influencing each prediction** in the "Why This Forecast" SHAP panel
+   near the bottom of the page.
+5. **Try a scenario** (flu outbreak, emergency admission spike, delayed discharges, staffing
+   shortage) from the sidebar's Scenario Filter, validated in Notebook 06, to see how the
+   forecast, alert, and charts would change under that situation.
+6. **Adjust the 72-hour window and Time of Day filters** in the sidebar to explore Emergency
+   Department arrival patterns for a specific period.
+        """
+    )
+
+# -----------------------------------------------------------------------------
+# Per-ward title
+# -----------------------------------------------------------------------------
+st.markdown("---")
 st.title(f"{selected_hospital_name}: {selected_ward} ({selected_bed_type})")
 if scenario_active:
     st.caption(
@@ -649,29 +702,56 @@ plt.close(fig2)
 st.markdown("---")
 with st.expander("Model information and known limitations"):
     st.markdown("""
-    **Model:** LightGBM, selected based on held-out test-set performance
-    (RMSE 1.41 beds daily, 2.68 beds weekly), trained on all 40 hospital-ward-bed_type series.
+    **Model:** LightGBM, selected on held-out test-set performance across five metrics
+    (RMSE, MAE, MAPE, SMAPE, R\u00b2), trained on all 40 hospital-ward-bed_type series.
 
-    **Things This Tool Can't Do (Yet)**
+    | Horizon | Test RMSE | Test MAE | Test R\u00b2 |
+    |---|---|---|---|
+    | Daily (t+1) | 1.41 beds | 0.93 beds | 0.975 |
+    | Weekly (t+7) | 2.68 beds | 1.79 beds | 0.910 |
+    | Hourly (ED arrivals, t+1h) | 2.31 arrivals | 1.73 arrivals | 0.604 |
 
-    - We tested this tool's accuracy using only three months of data (October to
-    December 2025). December looked good, so there's no sign of a problem in
-    winter specifically but we haven't yet checked a full year, so we can't
-    promise it holds up the same way in spring or summer.
+    **Models Evaluated**
 
-    - If a ward is short-staffed, this tool won't reliably tell you how that
-    affects bed availability. It's built to predict beds based on things like
-    how many patients are arriving and how long they're staying, not staffing
-    levels, so a staffing problem might not show up here even if it's a real
-    issue on the ground.
+    - A naive persistence baseline ("tomorrow looks like today"), test RMSE 1.92 beds
+    - Classical statistical models: SARIMAX and Prophet, tested on a representative ward
+    - Gradient boosting: XGBoost, LightGBM, CatBoost
+    - Random Forest
+    - A deep-learning sequence model (LSTM)
+    - The Temporal Fusion Transformer, named as optional in the project brief, was
+      deliberately not built: it typically needs substantially more data per series than the
+      roughly 500 days available here, and the LSTM result already showed a more complex deep
+      model was not needed to beat gradient boosting in this setting.
 
-    - The forecasts assume the hospital keeps running roughly the way it did in
-    2024 and 2025. If something changes significantly, for instance, a new ward opens, 
-    or a major policy shift happens, the tool will need to be retrained on fresh
-    data before its forecasts can be trusted again.
+    On the held-out test set, XGBoost technically had the lowest error (1.40 vs. 1.41 beds
+    RMSE for LightGBM), a difference of about 1%. LightGBM was selected anyway for practical
+    deployment reasons: faster training, native handling of ward/hospital categories, and a
+    smaller saved model file, a documented trade-off rather than the single most accurate
+    option available.
 
-    - The Emergency Department arrival numbers are hospital-wide, not specific to
-    whichever ward you've selected. Even if you've picked "Orthopaedics Ward A"
-    in the sidebar, the arrivals chart is still showing arrivals for the whole
-    hospital, not just that ward specifically.
+    **Known Limitations**
+
+    - **Seasonal test coverage:** the test data used for final evaluation covers only
+    October to December. December, a genuine winter month never used in training, actually
+    had the lowest error of the three test months (0.82 beds mean absolute error, versus
+    1.04 in October and 0.91 in November), which is reassuring, but a full year-round test
+    including spring and summer has not yet been carried out.
+
+    - **Staffing shortages:** this tool does not reliably show the bed-capacity impact of a
+    staffing shortage. A simulated severe staffing shortage changed the forecast by only
+    about 0.2 beds, most likely because busy wards strain staffing, not the other way round.
+    Use a dedicated staffing analysis for that question rather than this tool.
+
+    - **Assumes stable operations:** forecasts assume the hospital keeps running broadly as
+    it has since 2024. A major change, such as a new ward opening or a significant policy
+    shift, would need the model retrained on fresh data before its forecasts can be trusted
+    again.
+
+    - **Emergency Department figures are hospital-wide:** ED arrivals are recorded at the
+    hospital level in the source data, not per ward, so the hourly arrivals views are
+    hospital-wide even when a specific ward is selected in the sidebar.
+
+    - **Elective surgery ward mapping is approximate:** scheduled-surgery features map
+    Orthopaedics procedures evenly across Ward A and Ward B, since the source data does not
+    record which specific ward an elective surgery is booked for.
     """)
