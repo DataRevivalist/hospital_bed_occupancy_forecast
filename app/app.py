@@ -262,8 +262,7 @@ LATEST_HOUR = hourly['datetime'].max()
 # -----------------------------------------------------------------------------
 # Sidebar controls
 # -----------------------------------------------------------------------------
-st.sidebar.title("Albion Care Network")
-st.sidebar.caption("Predictive Bed Demand Forecasting")
+st.sidebar.title("Predictive Bed Demand Forecasting")
 
 hospital_options = (
     daily[['hospital_id']].drop_duplicates()
