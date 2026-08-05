@@ -389,11 +389,10 @@ with st.expander("About This Project", expanded=True):
     st.markdown(
         """
 **Problem:** Albion Care Network's bed capacity was managed reactively, using historical
-averages, with admissions, occupancy, staffing, and surgery data held in separate systems
-(Notebook 01).
+averages, with admissions, occupancy, staffing, and surgery data held in separate systems.
 
 **Solution:** Eight forecasting approaches were built and compared on genuinely held-out data
-across all 40 hospital-ward-bed_type combinations in the network (Notebooks 04-05). The
+across all 40 hospital-ward-bed_type combinations in the network. The
 selected model, LightGBM, reached a test-set error of 1.41 beds per day (RMSE) and explains
 97.5% of the real variation in occupancy (R\u00b2), against a naive "tomorrow looks like today"
 baseline of 1.92 beds.
