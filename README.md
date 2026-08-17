@@ -1,4 +1,4 @@
-# Predictive Bed Demand Forecasting — Albion Care Network
+# Predictive Bed Demand Forecasting - Albion Care Network
 
 AI-powered hospital bed demand forecasting system covering daily, weekly, and hourly horizons, with scenario simulation, explainability, and time-based filtering.
 
