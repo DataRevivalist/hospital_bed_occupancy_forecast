@@ -26,7 +26,7 @@ Albion Care Network's bed capacity was being managed reactively, using historica
 | **Hospital / ward / bed-type selection** | Populated dynamically from the underlying data |
 | **Daily & weekly occupancy forecasts** | With an alert banner triggered by the 85%/90% bottleneck thresholds identified during EDA |
 | **Scenario simulator** | Four validated scenarios (flu outbreak, emergency admission spike, delayed discharges, staffing shortage) with an adjustable intensity slider, applied globally across KPIs, alerts, trend charts, and hourly views |
-| **72-hour window & time-of-day filters** | Morning / Afternoon / Evening filtering on a dedicated KPI row (avg arrivals/hour, total arrivals, busiest period), driven by hourly A&E arrivals data — kept separate from the daily occupancy KPIs since the daily data has no hourly resolution |
+| **72-hour window & time-of-day filters** | Morning / Afternoon / Evening filtering on a dedicated KPI row (avg arrivals/hour, total arrivals, busiest period), driven by hourly A&E arrivals data are kept separate from the daily occupancy KPIs since the daily data has no hourly resolution |
 | **SHAP explainability panel** | Shows which features are driving the forecast for the currently selected ward |
 | **Inverse-color alerts** | Rising forecasts that push a ward toward its bottleneck threshold are shown in red, not the default green-for-positive |
 
@@ -36,13 +36,13 @@ Albion Care Network's bed capacity was being managed reactively, using historica
 
 | Notebook | Focus | Key Findings |
 |---|---|---|
-| 01 — Data Cleaning | Resolved inconsistent categorical text, duplicate records, and impossible timestamps across six raw datasets | |
-| 02 — EDA | Explored seasonality and bottlenecks | Strong shared winter seasonality across occupancy, admissions, cancellations, and staffing; Orthopaedics identified as the true bottleneck ward by *time spent above threshold*, not average occupancy |
-| 03 — Feature Engineering | Built a leakage-checked daily feature panel plus a supplementary hourly A&E arrivals panel | |
-| 04 — Model Development | Trained and validated eight forecasting approaches | |
-| 05 — Model Evaluation | Compared models on RMSE, MAE, MAPE, SMAPE, and R² | LightGBM selected for production over a marginally stronger XGBoost, for faster training, native categorical handling, and a smaller file size |
-| 06 — Scenario Simulation | Simulated flu outbreak, delayed discharge, emergency spike, and staffing shortage scenarios | Staffing shortage alone does not drive the model's forecast — an important usage caveat, documented in the model card |
-| 07 — Deployment | Shipped the Streamlit app, alerts, hourly filtering, and a continuous learning pipeline | |
+| 01 - Data Cleaning | Resolved inconsistent categorical text, duplicate records, and impossible timestamps across six raw datasets | |
+| 02 - EDA | Explored seasonality and bottlenecks | Strong shared winter seasonality across occupancy, admissions, cancellations, and staffing; Orthopaedics identified as the true bottleneck ward by *time spent above threshold*, not average occupancy |
+| 03 - Feature Engineering | Built a leakage-checked daily feature panel plus a supplementary hourly A&E arrivals panel | |
+| 04 - Model Development | Trained and validated eight forecasting approaches | |
+| 05 - Model Evaluation | Compared models on RMSE, MAE, MAPE, SMAPE, and R² | LightGBM selected for production over a marginally stronger XGBoost, for faster training, native categorical handling, and a smaller file size |
+| 06 - Scenario Simulation | Simulated flu outbreak, delayed discharge, emergency spike, and staffing shortage scenarios | Staffing shortage alone does not drive the model's forecast which is an important usage caveat, documented in the model card |
+| 07 - Deployment | Shipped the Streamlit app, alerts, hourly filtering, and a continuous learning pipeline | |
 
 ---
 
@@ -54,7 +54,7 @@ hospital_bed_occupancy_forecast/
 ├── data/                         # Processed data (auto-located relative to app/)
 ├── models/                       # Trained model artefacts
 ├── monitoring/                   # Drift detection & retraining pipeline
-├── notebooks/                    # Notebooks 01–07 (cleaning through deployment)
+├── notebooks/                    # Notebooks 01-07 (cleaning through deployment)
 ├── model_card.md                 # Model performance & full limitations list
 ├── Project_Documentation_Report.docx  # Full technical write-up and design rationale
 └── README.md
@@ -72,13 +72,13 @@ streamlit run app/app.py
 
 ### Deploying on Streamlit Community Cloud
 
-1. Push the full repository to GitHub (`data/` and `models/` included — all files are well under GitHub's size limits)
+1. Push the full repository to GitHub (`data/` and `models/` included, all files are well under GitHub's size limits)
 2. On [share.streamlit.io](https://share.streamlit.io), create a new app, select this repository and branch, and set the main file path to `app/app.py`
 3. Streamlit Cloud installs from `app/requirements.txt` automatically
 
 ### Running the Monitoring Pipeline
 
-See the docstrings in `monitoring/bed_demand_monitoring.py` for `monitor_performance`, `check_for_drift`, and `retrain_daily_model` — designed to be called from a scheduler (e.g. a monthly cron job, or triggered on drift detection).
+See the docstrings in `monitoring/bed_demand_monitoring.py` for `monitor_performance`, `check_for_drift`, and `retrain_daily_model` designed to be called from a scheduler (e.g. a monthly cron job, or triggered on drift detection).
 
 ---
 
@@ -90,7 +90,7 @@ This model should **not** be used alone to forecast the bed-capacity impact of a
 
 ## Further Documentation
 
-- [`model_card.md`](./model_card.md) — model performance and full limitations list
+- [`model_card.md`](./model_card.md) - model performance and full limitations list
 - [`Project_Documentation_Report.docx`](./Project_Documentation_Report.docx) — complete technical account of every notebook and the deployed application, including justification for every major design, technology, and methodological decision
 
 ---
